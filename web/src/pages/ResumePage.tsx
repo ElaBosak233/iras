@@ -1,3 +1,16 @@
+/**
+ * 简历详情页
+ * 路由：/resume/:id
+ *
+ * 功能：
+ *   1. 进入页面时立即轮询解析状态（每 2 秒），直到 done 或 error
+ *   2. 解析完成后展示 ResumeCard（左侧）和 MatchPanel（右侧）双栏布局
+ *   3. 用户提交 JD 后，轮询匹配状态（每 1.5 秒），直到评分完成
+ *
+ * 轮询实现：
+ *   - 简历解析轮询：useEffect + setInterval，组件卸载时清除
+ *   - 匹配评分轮询：Promise 包装的 setInterval，await 等待结果
+ */
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -10,11 +23,13 @@ export function ResumePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
+  // 简历解析状态
   const [status, setStatus] = useState<"pending" | "done" | "error">("pending");
   const [resumeInfo, setResumeInfo] = useState<ResumeInfo | null>(null);
   const [cached, setCached] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  // 匹配评分状态
   const [matchResult, setMatchResult] = useState<{
     match_result: MatchResult;
     cached: boolean;
@@ -24,6 +39,7 @@ export function ResumePage() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 轮询简历解析状态，直到 done 或 error
   useEffect(() => {
     if (!id) return;
 
@@ -40,12 +56,13 @@ export function ResumePage() {
           setStatus("error");
           if (pollRef.current) clearInterval(pollRef.current);
         }
-        // still pending — keep polling
+        // pending 状态继续轮询
       } catch {
-        // ignore transient errors
+        // 忽略瞬时网络错误
       }
     };
 
+    // 立即执行一次，避免等待第一个 interval
     poll();
     pollRef.current = setInterval(poll, 2000);
     return () => {
@@ -61,7 +78,7 @@ export function ResumePage() {
     try {
       const { match_id } = await submitMatch(id, jd);
 
-      // Poll until done or error
+      // 用 Promise 包装轮询，await 等待评分完成后再更新 UI
       await new Promise<void>((resolve, reject) => {
         const timer = setInterval(async () => {
           try {
@@ -106,6 +123,7 @@ export function ResumePage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* 解析中：全屏居中加载动画 */}
         {status === "pending" && (
           <div className="flex flex-col items-center justify-center gap-3 py-24 text-gray-400">
             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -113,6 +131,7 @@ export function ResumePage() {
           </div>
         )}
 
+        {/* 解析失败：错误提示 */}
         {status === "error" && (
           <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0" />
@@ -120,6 +139,7 @@ export function ResumePage() {
           </div>
         )}
 
+        {/* 解析完成：左侧简历详情 + 右侧匹配面板 */}
         {status === "done" && resumeInfo && (
           <div className="space-y-4">
             {matchError && (

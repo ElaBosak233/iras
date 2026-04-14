@@ -1,3 +1,14 @@
+/**
+ * 岗位匹配面板组件
+ * 包含两部分：
+ *   1. JD 输入表单：粘贴岗位需求描述，点击提交触发匹配
+ *   2. 匹配结果展示：综合评分、三项指标进度条、关键词分类
+ *
+ * 评分颜色规则：
+ *   - 75+：绿色（优秀匹配）
+ *   - 50-74：黄色（一般匹配）
+ *   - <50：红色（匹配度低）
+ */
 import { Loader2, Target } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -7,11 +18,14 @@ import { Progress } from "@/components/ui/progress";
 import type { MatchResult } from "@/types/resume";
 
 interface MatchPanelProps {
+  /** 提交匹配任务的回调，父组件负责轮询和状态管理 */
   onMatch: (jd: string) => Promise<void>;
+  /** 匹配结果，null 表示尚未匹配 */
   result: { match_result: MatchResult; cached: boolean } | null;
   loading: boolean;
 }
 
+/** 综合评分环形展示，根据分数区间显示不同颜色 */
 function ScoreRing({ score }: { score: number }) {
   const color =
     score >= 75
@@ -39,6 +53,7 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">岗位匹配</h2>
 
+      {/* JD 输入表单 */}
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-3">
@@ -71,6 +86,7 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
         </CardContent>
       </Card>
 
+      {/* 匹配结果卡片 */}
       {result && (
         <Card>
           <CardHeader className="pb-3">
@@ -80,10 +96,12 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
+            {/* 综合评分 */}
             <div className="flex justify-center py-2">
               <ScoreRing score={result.match_result.score} />
             </div>
 
+            {/* 三项细分指标进度条 */}
             <div className="space-y-3">
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
@@ -119,10 +137,12 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
               </div>
             </div>
 
+            {/* 综合评估说明 */}
             <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
               {result.match_result.analysis}
             </p>
 
+            {/* 入职走向预测（可选字段） */}
             {result.match_result.growth_outlook && (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -134,6 +154,7 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
               </div>
             )}
 
+            {/* 已匹配关键词（绿色） */}
             {result.match_result.matched_keywords.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -149,6 +170,7 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
               </div>
             )}
 
+            {/* 可迁移技能（灰色，有相关经验但非直接匹配） */}
             {result.match_result.transferable_skills.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -164,6 +186,7 @@ export function MatchPanel({ onMatch, result, loading }: MatchPanelProps) {
               </div>
             )}
 
+            {/* 缺失关键词（红色，整个领域无经验时才列出） */}
             {result.match_result.missing_keywords.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">

@@ -1,12 +1,26 @@
+/**
+ * 简历列表项组件
+ * 展示单条简历的解析状态，并在 status 为 "pending" 时自动轮询后端。
+ *
+ * 轮询逻辑：
+ *   - 每 2 秒调用一次 GET /api/resumes/{id}
+ *   - 状态变为 "done" 或 "error" 时停止轮询，通过 onStatusChange 通知父组件
+ *   - 组件卸载时清除定时器，防止内存泄漏
+ *
+ * 点击行为：
+ *   - done 状态：跳转到 /resume/{id} 详情页
+ *   - pending/error 状态：不可点击
+ */
 import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getResume } from "@/lib/api";
 import type { ResumeInfo, ResumeParseStatus } from "@/types/resume";
 
+/** 简历列表项的数据结构，由父组件（App.tsx）维护 */
 export interface ResumeEntry {
   resumeId: string;
-  fileName: string;
+  fileName: string;          // 原始文件名（从 localStorage 恢复）
   status: ResumeParseStatus;
   resumeInfo: ResumeInfo | null;
   cached: boolean;
@@ -15,6 +29,7 @@ export interface ResumeEntry {
 
 interface ResumeListItemProps {
   entry: ResumeEntry;
+  /** 状态变化时通知父组件，使用 patch 局部更新避免覆盖其他字段 */
   onStatusChange: (id: string, patch: Partial<ResumeEntry>) => void;
 }
 
@@ -22,6 +37,7 @@ export function ResumeListItem({ entry, onStatusChange }: ResumeListItemProps) {
   const navigate = useNavigate();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 仅在 pending 状态时启动轮询，状态变化后自动停止
   useEffect(() => {
     if (entry.status !== "pending") return;
 
@@ -29,7 +45,7 @@ export function ResumeListItem({ entry, onStatusChange }: ResumeListItemProps) {
       try {
         const res = await getResume(entry.resumeId);
         if (res.status !== "pending") {
-          clearInterval(pollRef.current!);
+          if (pollRef.current) clearInterval(pollRef.current);
           onStatusChange(entry.resumeId, {
             status: res.status,
             resumeInfo: res.resume_info,
@@ -38,7 +54,7 @@ export function ResumeListItem({ entry, onStatusChange }: ResumeListItemProps) {
           });
         }
       } catch {
-        // ignore transient errors
+        // 忽略瞬时网络错误，继续轮询
       }
     }, 2000);
 
@@ -51,6 +67,7 @@ export function ResumeListItem({ entry, onStatusChange }: ResumeListItemProps) {
   const isError = entry.status === "error";
   const isDone = entry.status === "done";
 
+  // 解析完成后优先显示候选人姓名，否则显示文件名
   const displayName =
     isDone && entry.resumeInfo?.basic_info?.name
       ? entry.resumeInfo.basic_info.name
@@ -64,6 +81,7 @@ export function ResumeListItem({ entry, onStatusChange }: ResumeListItemProps) {
         onClick={() => isDone && navigate(`/resume/${entry.resumeId}`)}
         disabled={isPending}
       >
+        {/* 状态图标：解析中 / 失败 / 成功 */}
         {isPending && (
           <Loader2 className="h-4 w-4 text-blue-500 animate-spin shrink-0" />
         )}

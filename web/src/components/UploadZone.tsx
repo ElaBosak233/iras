@@ -1,3 +1,12 @@
+/**
+ * 拖拽上传区域组件
+ * 支持两种上传方式：
+ *   1. 拖拽 PDF 文件到区域内释放
+ *   2. 点击区域弹出文件选择框
+ *
+ * 拖拽状态（dragging）会改变边框颜色，提供视觉反馈。
+ * loading 状态下禁用交互，显示加载动画。
+ */
 import { Loader2, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -15,6 +24,7 @@ export function UploadZone({ onUpload, loading }: UploadZoneProps) {
       e.preventDefault();
       setDragging(false);
       const file = e.dataTransfer.files[0];
+      // 只接受 PDF 文件，其他格式静默忽略
       if (file?.type === "application/pdf") onUpload(file);
     },
     [onUpload]
@@ -26,6 +36,7 @@ export function UploadZone({ onUpload, loading }: UploadZoneProps) {
   };
 
   return (
+    // 使用 label 包裹隐藏的 input，点击整个区域即可触发文件选择
     <label
       className={cn(
         "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-12 cursor-pointer transition-colors",

@@ -1,3 +1,13 @@
+/**
+ * 主页面组件（App.tsx）
+ * 负责：
+ *   - 页面挂载时从服务端恢复历史简历列表（listResumes + getResume）
+ *   - 处理 PDF 上传，立即将新简历以 pending 状态插入列表顶部
+ *   - 通过 onStatusChange 回调接收子组件的状态更新，统一管理 resumes 状态
+ *
+ * 文件名映射（resume_id → 原始文件名）存储在 localStorage，
+ * 因为服务端不保存文件名，刷新后需从本地恢复。
+ */
 import { AlertCircle, FileSearch } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { ResumeEntry } from "@/components/ResumeListItem";
@@ -5,6 +15,7 @@ import { ResumeListItem } from "@/components/ResumeListItem";
 import { UploadZone } from "@/components/UploadZone";
 import { getResume, listResumes, submitResume } from "@/lib/api";
 
+// localStorage key，用于持久化 resume_id → 文件名的映射
 const STORAGE_KEY = "iras_resume_filenames";
 
 function loadFileNames(): Record<string, string> {
@@ -26,7 +37,7 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Restore resume list from server on mount, fetching real status for each
+  // 页面挂载时从服务端恢复历史简历列表，并获取每条记录的实时状态
   useEffect(() => {
     listResumes()
       .then(async (ids) => {
@@ -38,14 +49,14 @@ export default function App() {
               const res = await getResume(id);
               return {
                 resumeId: id,
-                fileName: fileNames[id] ?? id,
+                fileName: fileNames[id] ?? id,  // 无文件名时降级显示 id
                 status: res.status,
                 resumeInfo: res.resume_info ?? null,
                 cached: res.cached,
                 error: res.error ?? null,
               } satisfies ResumeEntry;
             } catch {
-              // If we can't fetch status, skip this entry
+              // 单条记录获取失败时跳过，不影响其他记录
               return null;
             }
           })
@@ -53,7 +64,7 @@ export default function App() {
         setResumes(entries.filter((e): e is ResumeEntry => e !== null));
       })
       .catch(() => {
-        /* session may not exist yet, ignore */
+        // 会话不存在时 listResumes 可能返回空或报错，静默忽略
       });
   }, []);
 
@@ -63,6 +74,7 @@ export default function App() {
     try {
       const { resume_id } = await submitResume(file);
       saveFileName(resume_id, file.name);
+      // 立即插入 pending 状态，ResumeListItem 会自动开始轮询
       setResumes((prev) => [
         {
           resumeId: resume_id,
@@ -81,6 +93,7 @@ export default function App() {
     }
   };
 
+  // 子组件通过此回调上报状态变化（pending → done/error），使用 patch 局部更新
   const handleStatusChange = useCallback(
     (id: string, patch: Partial<ResumeEntry>) => {
       setResumes((prev) =>
